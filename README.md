@@ -46,7 +46,7 @@ Usage: ./s3-parquet.py [ -r < read|write> ] [ -l <local|s3> ] [ -b < bucket_name
 $ ./s3-parquet.py -c write -l local
 $ ./s3-parquet.py -c read -l local
 ~~~
-#### Write and read sample parquet file into minio s3 object storage
+#### Write and read sample parquet file into bucket of s3 object storage
 ~~~
 $ ./s3-parquet.py -c write -l s3 -b jbucket01 -f data
 $ ./s3-parquet.py -c read -l s3 -b jbucket01 -f data
