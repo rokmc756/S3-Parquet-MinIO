@@ -17,6 +17,9 @@ import pyarrow.parquet as pq                 #
 from pyarrow import Table                    #
 from dotenv import load_dotenv               #
 from dotenv import dotenv_values
+from minio import Minio
+from pyminio import Pyminio
+
 
 load_dotenv('./s3-config.env');
 # s3config = dotenv_values('./s3-config.env');
@@ -34,11 +37,58 @@ def connect_s3():
     )
     return fs
 
+def delete_bucket():
+    file_system = s3fs.S3FileSystem()
+    file_system.rm('s3://my-bucket/foo.txt')  # single file
+    files = ['s3://my-bucket/bar.txt', 's3://my-bucket/baz.txt']
+    file_system.rm(files)  # several files
+
+def test_exists(self, dataset, mocked_csvs_in_s3):
+    assert PartitionedDataSet(mocked_csvs_in_s3, dataset).exists()
+
+    empty_folder = "/".join([mocked_csvs_in_s3, "empty", "folder"])
+    assert not PartitionedDataSet(empty_folder, dataset).exists()
+
+    s3fs.S3FileSystem().mkdir(empty_folder)
+    assert not PartitionedDataSet(empty_folder, dataset).exists()
+
+def test_protocol_usage(self, filepath, instance_type):
+    data_set = CSVDataSet(filepath=filepath)
+    assert isinstance(data_set._fs, instance_type)
+
+    # _strip_protocol() doesn't strip http(s) protocol
+    if data_set._protocol == "https":
+        path = filepath.split("://")[-1]
+    else:
+        path = data_set._fs._strip_protocol(filepath)
+
+def test_remote(self):
+    endpoint_url = "http://obs.eu-de.otc.t-systems.com"
+    s3 = s3fs.S3FileSystem(anon=True, client_kwargs=dict(endpoint_url=endpoint_url))
+    s3_store = s3fs.S3Map(root="cyanoalert/cyanoalert-olci-lswe-l2c-v1.zarr", s3=s3, check=False)
+    diagnostic_store = DiagnosticStore(s3_store, logging_observer(log_path='remote-cube.log'))
+    xr.open_zarr(diagnostic_store)
+
+def write_s3():
+    fs = s3fs.S3FileSystem()
+    pa.parquet.write_to_dataset(table, root_path=output_folder, filesystem=fs,
+    compression='snappy', partition_filename_cb=lambda x: filename)
+
+def convert_parquet_to_csv( _local_filepath ):
+    df = pd.read_parquet( _local_filepath )
+    # print( _local_filepath.split('.')[0] + '.csv' )
+    df.to_csv( _local_filepath.split('.')[0] + '.csv' )
+    # df.to_csv('filename.csv')
+
+def convert_csv_to_parquet( _local_filepath ):
+    df = pd.read_csv( _local_filepath )
+    df.to_parquet( _local_filepath.split('.')[0] + '-test-' + '.parquet' )
+
 def read_parquet_local( _local_filepath ):
     pf = pq.ParquetDataset( _local_filepath )
     print("[ Read data ]")
     print(pf.read().to_pandas())
-    # print(pf.metadata)  # Depreicated
+    # print(pf.metadata)  # Depreicated in v2
     # print(pf.fragments)
     # print(pf.schema)
 
@@ -87,12 +137,12 @@ def read_parquet_s3( _bucket_name, _filename ):
     # dataset = pq.ParquetDataset('dataset_name/', use_legacy_dataset=False, filters=[('n_legs','=',4)])
 
 def usage():
-  print("Usage: ./s3-parquet.py [ -r < read|write> ] [ -l <local|s3> ] [ -b < bucket_name > ] [ -f < file_name > ]")
+  print("Usage: ./s3-parquet.py [ -r < read|write> ] [ -l <local|s3> ] [ -b < bucket_name > ] [ -f < file_name > ] [ -d < directory_name > ]")
   return
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"c:f:l:b:i:o:",["usage"])
+        opts, args = getopt.getopt(sys.argv[1:],"c:f:l:b:s:t:i:o:",["usage"])
     except getopt.GetoptError as err:
         print(str(err))
         usage()
@@ -107,22 +157,33 @@ def main():
             _bucket=arg
         elif ( opt == "-f"):
             _files=arg
+        elif ( opt == "-s"):
+            _source=arg
+        elif ( opt == "-t"):
+            _target=arg
+        elif ( opt == "-d"):
+            _directory=arg
         elif ( opt == "-h") or ( opt == "--help"):
             usage()
         else:
             usage()
 
-
     # Call functions according to options given
     _sample_data=os.getenv("SAMPLE_DATA")
 
-    if ( _command ) == "read" and ( _location == "local" ):
+    if ( _command  == "read" ) and ( _location == "local" ):
         read_parquet_local( _sample_data )
-    elif ( _command ) == "write" and ( _location == "local" ):
+    elif ( _command  == "write" ) and ( _location == "local" ):
         write_parquet_local( _sample_data )
-    elif ( _command ) == "read" and ( _location == "s3" ) and ( _files != "" ):
+    elif ( _command == "convert" ) and ( _files != "" ) and ( _source == "parquet" ) and  ( _target  == "csv" ):
+        convert_parquet_to_csv( _files )
+    elif ( _command == "convert" ) and ( _files != "" ) and ( _source == "csv" ) and  ( _target  == "parquet" ):
+        convert_csv_to_parquet( _files )
+    elif ( _command == "read" ) and ( _location == "s3" ) and ( _files != "" ):
         read_parquet_s3( _bucket, _files )
-    elif ( _command ) == "write" and ( _location == "s3" ) and ( _files != "" ):
+    elif ( _command == "write" ) and ( _location == "s3" ) and ( _directory != "" ):
+        write_parquet_s3( _bucket, _directory )
+    elif ( _command == "write" ) and ( _location == "s3" ) and ( _files != "" ):
         write_parquet_s3( _bucket, _files )
     else:
         usage
