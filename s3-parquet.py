@@ -9,7 +9,7 @@
 # 2023-04-25, VMWare Tanzu Support
 # Staff Product Support Engineer, Jack Moon <moonja@vmware.com>
 
-import os, sys, time, getopt, s3fs           #
+import os, sys, re, time, getopt, s3fs       #
 import numpy as np                           #
 import pandas as pd                          #
 import pyarrow as pa                         #
@@ -45,11 +45,16 @@ def delete_parquet_s3(_bucket, _filename):
     s3_filepaths = [path for path in fs.ls(s3_filepath)
        if path.endswith('.parquet')]
 
-    print("[ Check parquet file location ]")
-    print(s3_filepaths)
+    for _pn in s3_filepaths:
+        if _filename == _pn.split("/" , 2)[1]:
+            fs.delete("s3://" + _pn)
+            # print("s3://" + _pn)
+
+    # print("[ Check parquet file location ]")
+    # print(s3_filepaths)
     # print("")
 
-    # exit(1)
+    exit(1)
 
     # s3_filepath = _bucket + "/" + _filename + ".parquet"
     s3_filepath = _bucket + "/" + _filename
@@ -264,3 +269,4 @@ def main():
 if __name__ == '__main__':
     main()
 
+# https://www.programcreek.com/python/example/115410/s3fs.S3FileSystem
